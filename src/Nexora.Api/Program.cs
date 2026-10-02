@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Nexora.Api;
+using Nexora.Api.Security;
+using Nexora.Application.MediaCatalog;
 using Nexora.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,8 +18,15 @@ builder.Services.AddDbContext<NexoraDbContext>(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+builder.Services.AddScoped<IMediaCatalogRepository, MediaCatalogRepository>();
+builder.Services.AddScoped<MediaCatalogService>();
 
 var app = builder.Build();
+
+app.UseMiddleware<ApiExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

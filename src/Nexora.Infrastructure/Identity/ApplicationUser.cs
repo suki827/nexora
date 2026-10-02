@@ -6,5 +6,9 @@ public class ApplicationUser : IdentityUser<Guid>
 {
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public DateTime? DeletedAt { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public string? DisplayName { get; set; }
+
+    public string Status { get; set; } = "active";
 }

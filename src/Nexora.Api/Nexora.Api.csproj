@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Nexora.Application\Nexora.Application.csproj" />
     <ProjectReference Include="..\Nexora.Infrastructure\Nexora.Infrastructure.csproj" />
   </ItemGroup>
 
