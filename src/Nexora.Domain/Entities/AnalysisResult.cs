@@ -1,74 +1,30 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Nexora.Domain.Entities;
 
-[Table("analysis_results")]
-public class AnalysisResult
+public sealed class AnalysisResult
 {
-    /// <summary>
-    /// UUID primary key of the analysis result record.
-    /// </summary>
-    [Key]
-    [Column("id")]
-    public Guid Id { get; set; }
-
-    /// <summary>
-    /// UUID of the analysis task that produced this result.
-    /// </summary>
-    [Required]
-    [Column("analysis_task_id")]
-    public Guid AnalysisTaskId { get; set; }
-
-    /// <summary>
-    /// Type of result, such as video_summary or shot_detection.
-    /// </summary>
-    [Required]
-    [MaxLength(100)]
-    [Column("result_type")]
-    public string ResultType { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Version of the JSON result structure.
-    /// </summary>
-    [Required]
-    [MaxLength(20)]
-    [Column("schema_version")]
-    public string SchemaVersion { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Structured JSON analysis output.
-    /// </summary>
-    [Required]
-    [Column("result_payload", TypeName = "jsonb")]
-    public JsonDocument ResultPayload { get; set; } = null!;
-
-    /// <summary>
-    /// Optional confidence or quality score.
-    /// </summary>
-    [Column("confidence_score", TypeName = "numeric(5,4)")]
-    public decimal? ConfidenceScore { get; set; }
-
-    /// <summary>
-    /// Date and time when the result was created.
-    /// </summary>
-    [Required]
-    [Column("created_at")]
-    public DateTimeOffset CreatedAt { get; set; }
-
-    /// <summary>
-    /// Date and time when the result was last updated.
-    /// </summary>
-    [Required]
-    [Column("updated_at")]
-    public DateTimeOffset UpdatedAt { get; set; }
-
-    /// <summary>
-    /// Navigation property for the related analysis task.
-    /// </summary>
-    [ForeignKey(nameof(AnalysisTaskId))]
-    [JsonIgnore]
-    public AnalysisTask? AnalysisTask { get; set; }
+    public Guid Id { get; private set; }
+    public Guid TaskId { get; private set; }
+    public string ResultType { get; private set; } = string.Empty;
+    public string SchemaVersion { get; private set; } = string.Empty;
+    public JsonDocument ResultPayload { get; private set; } = null!;
+    public decimal? ConfidenceScore { get; private set; }
+    public bool IsCurrent { get; private set; }
+    public DateTime CreatedAt { get; private set; }
+    public DateTime UpdatedAt { get; private set; }
+    public AnalysisTask Task { get; private set; } = null!;
+    public ICollection<GeneratedArtifact> Artifacts { get; private set; } = new List<GeneratedArtifact>();
+    private AnalysisResult() { }
+    public AnalysisResult(Guid taskId, string resultType, string schemaVersion, JsonDocument payload, decimal? score)
+    {
+        if (taskId == Guid.Empty) throw new ArgumentException("Task is required.", nameof(taskId));
+        if (string.IsNullOrWhiteSpace(resultType) || resultType.Length > 100) throw new ArgumentException("Invalid result type.", nameof(resultType));
+        if (string.IsNullOrWhiteSpace(schemaVersion) || schemaVersion.Length > 20) throw new ArgumentException("Invalid schema version.", nameof(schemaVersion));
+        if (score is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(score));
+        Id = Guid.NewGuid(); TaskId = taskId; ResultType = resultType.Trim(); SchemaVersion = schemaVersion.Trim();
+        ResultPayload = payload ?? throw new ArgumentNullException(nameof(payload)); ConfidenceScore = score;
+        IsCurrent = true; CreatedAt = UpdatedAt = DateTime.UtcNow;
+    }
+    public void Supersede() { IsCurrent = false; UpdatedAt = DateTime.UtcNow; }
 }

@@ -8,6 +8,7 @@ public sealed class ApiExceptionMiddleware(RequestDelegate next, ILogger<ApiExce
 {
     public async Task InvokeAsync(HttpContext context)
     {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
         try
         {
             await next(context);

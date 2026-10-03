@@ -25,26 +25,6 @@ public sealed class UpdateMediaAssetRequest
     public string Status { get; init; } = MediaAsset.StatusActive;
 }
 
-public sealed class CreateAssetFileRequest
-{
-    [Required, RegularExpression("^(original|subtitle|reference_script|attachment)$")]
-    public string FileRole { get; init; } = AssetFile.RoleOriginal;
-    [Required, StringLength(255, MinimumLength = 1)]
-    public string OriginalName { get; init; } = string.Empty;
-    [Required, RegularExpression("^(local|swift|s3)$")]
-    public string StorageProvider { get; init; } = AssetFile.ProviderLocal;
-    [StringLength(255)]
-    public string? StorageBucket { get; init; }
-    [Required, MinLength(1)]
-    public string StorageKey { get; init; } = string.Empty;
-    [StringLength(150)]
-    public string? ContentType { get; init; }
-    [Range(0, long.MaxValue)]
-    public long? SizeBytes { get; init; }
-    [RegularExpression("^[0-9a-fA-F]{64}$")]
-    public string? ContentHash { get; init; }
-}
-
 public sealed class UpdateMediaMetadataRequest
 {
     [Range(typeof(decimal), "0", "79228162514264337593543950335")]

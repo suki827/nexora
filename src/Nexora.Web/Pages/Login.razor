@@ -1,0 +1,50 @@
+@page "/login"
+@inject WebApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · Nexora</PageTitle>
+<div class="login-wrap">
+    <div class="card">
+        <h1>@(register ? "Create an account" : "Welcome back")</h1>
+        <p class="muted">Sign in to manage your media assets and analysis tasks.</p>
+        @if (error is not null) { <div class="error">@error</div> }
+        @if (register)
+        {
+            <div class="field"><label for="display-name">Display name</label><input id="display-name" @bind="displayName" /></div>
+        }
+        <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="username" @bind="email" /></div>
+        <div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="@(register ? "new-password" : "current-password")" @bind="password" /></div>
+        <div class="actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="busy" OnClick="Submit">@(register ? "Create account" : "Sign in")</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="Toggle">@(register ? "Already have an account? Sign in" : "New to Nexora? Create an account")</MudButton>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string email = "";
+    private string password = "";
+    private string displayName = "";
+    private string? error;
+    private bool register;
+    private bool busy;
+
+    private void Toggle() { register = !register; error = null; }
+
+    private async Task Submit()
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        { error = "Enter your email and password."; return; }
+        busy = true;
+        try
+        {
+            var path = register ? "/api/auth/register" : "/api/auth/login";
+            await Api.SendAsync<CurrentUser>("POST", path,
+                new { email, password, displayName = register ? displayName : null });
+            Navigation.NavigateTo("/assets", forceLoad: true);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+}

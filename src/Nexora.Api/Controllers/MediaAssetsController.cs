@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Nexora.Api.Contracts;
 using Nexora.Api.Security;
 using Nexora.Application.MediaCatalog;
@@ -7,6 +8,7 @@ using Nexora.Application.MediaCatalog;
 namespace Nexora.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/assets")]
 public sealed class MediaAssetsController(
     MediaCatalogService catalog,
@@ -88,26 +90,6 @@ public sealed class MediaAssetsController(
             : Ok(result.ToResponse(x => x.ToResponse()));
     }
 
-    [HttpPost("{assetId:guid}/files")]
-    public async Task<ActionResult<AssetFileResponse>> CreateFile(
-        Guid assetId, CreateAssetFileRequest request, CancellationToken cancellationToken)
-    {
-        if (currentUser.UserId is not { } ownerId)
-            return Unauthorized();
-
-        var file = await catalog.CreateAssetFileAsync(
-            ownerId,
-            assetId,
-            new CreateAssetFile(
-                request.FileRole, request.OriginalName, request.StorageProvider,
-                request.StorageBucket, request.StorageKey, request.ContentType,
-                request.SizeBytes, request.ContentHash),
-            cancellationToken);
-        return file is null
-            ? NotFound()
-            : CreatedAtAction(nameof(GetFile), new { assetId, fileId = file.Id }, file.ToResponse());
-    }
-
     [HttpGet("{assetId:guid}/files/{fileId:guid}")]
     public async Task<ActionResult<AssetFileResponse>> GetFile(
         Guid assetId, Guid fileId, CancellationToken cancellationToken)
@@ -167,5 +149,15 @@ public sealed class MediaAssetsController(
                 probeJson),
             cancellationToken);
         return metadata is null ? NotFound() : Ok(metadata.ToResponse());
+    }
+
+    [HttpPost("{assetId:guid}/files/{fileId:guid}/metadata/retry")]
+    public async Task<IActionResult> RetryMetadata(
+        Guid assetId, Guid fileId, CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId is not { } ownerId)
+            return Unauthorized();
+        return await catalog.RetryMetadataAsync(ownerId, assetId, fileId, cancellationToken)
+            ? Accepted() : NotFound();
     }
 }

@@ -1,0 +1,69 @@
+@page "/assets"
+@inject WebApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Media assets · Nexora</PageTitle>
+<div class="page-head"><div><h1>Media assets</h1><p class="muted">Upload files and track processing status.</p></div></div>
+@if (error is not null) { <div class="error">@error</div> }
+<div class="card">
+    <h2>Create an asset</h2>
+    <div class="grid">
+        <div class="field"><label for="asset-name">Name</label><input id="asset-name" maxlength="255" @bind="name" /></div>
+        <div class="field"><label for="asset-type">Type</label><select id="asset-type" @bind="assetType"><option value="video">Video</option><option value="audio">Audio</option><option value="image">Image</option><option value="document">Document</option></select></div>
+    </div>
+    <div class="field"><label for="asset-description">Description</label><textarea id="asset-description" @bind="description"></textarea></div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="busy" OnClick="Create">Create asset</MudButton>
+</div>
+<div class="card">
+    <div class="page-head"><h2>All assets</h2><label><input type="checkbox" @bind="includeArchived" @bind:after="Load" /> Include archived</label></div>
+    @if (items is null) { <p class="muted">Loading…</p> }
+    else if (items.Items.Count == 0) { <div class="empty">No media assets yet. Create one to get started.</div> }
+    else
+    {
+        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>
+            @foreach (var item in items.Items)
+            {
+                <tr><td><a href="/assets/@item.Id">@item.Name</a></td><td>@item.AssetType</td><td><span class="pill">@item.Status</span></td><td>@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td><td><a href="/assets/@item.Id">View</a></td></tr>
+            }
+        </tbody></table></div>
+        <div class="actions" style="margin-top:18px"><MudButton Disabled="@(currentPage <= 1)" OnClick="Previous">Previous</MudButton><span>Page @currentPage · @items.TotalCount total</span><MudButton Disabled="@(currentPage * 20 >= items.TotalCount)" OnClick="Next">Next</MudButton></div>
+    }
+</div>
+
+@code {
+    private PageData<Asset>? items;
+    private int currentPage = 1;
+    private string name = "";
+    private string? description;
+    private string assetType = "video";
+    private string? error;
+    private bool busy;
+    private bool includeArchived;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) { await Load(); StateHasChanged(); }
+    }
+
+    private async Task Load()
+    {
+        try { error = null; items = await Api.GetAsync<PageData<Asset>>($"/api/assets?page={currentPage}&pageSize=20&includeArchived={includeArchived.ToString().ToLowerInvariant()}"); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Create()
+    {
+        if (string.IsNullOrWhiteSpace(name)) { error = "Enter an asset name."; return; }
+        busy = true;
+        try
+        {
+            var asset = await Api.SendAsync<Asset>("POST", "/api/assets", new { name, description, assetType });
+            if (asset is not null) Navigation.NavigateTo($"/assets/{asset.Id}");
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task Previous() { currentPage--; await Load(); }
+    private async Task Next() { currentPage++; await Load(); }
+}

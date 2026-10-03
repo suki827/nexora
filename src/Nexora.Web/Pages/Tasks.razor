@@ -1,0 +1,71 @@
+@page "/tasks"
+@inject WebApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Analysis tasks · Nexora</PageTitle>
+<div class="page-head"><div><h1>Analysis tasks</h1><p class="muted">Create and track media analysis tasks.</p></div></div>
+@if (error is not null) { <div class="error">@error</div> }
+<div class="card"><h2>Create a task</h2>
+    <div class="grid"><div class="field"><label for="analysis-type">Analysis type</label><select id="analysis-type" @bind="analysisType"><option value="media_analysis">Technical metadata (v1)</option></select></div><div class="field"><label for="source-file">Input file ID</label><input id="source-file" @bind="sourceFileId" placeholder="Select a file from a media asset" /></div></div>
+    <p class="muted">The worker starts this task when the source file's metadata is ready.</p>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="busy" OnClick="Create">Submit task</MudButton>
+</div>
+<div class="card"><h2>Task list</h2>
+    @if (items is null) { <p class="muted">Loading…</p> }
+    else if (items.Items.Count == 0) { <div class="empty">No analysis tasks yet.</div> }
+    else
+    {
+        <div class="table-wrap"><table><thead><tr><th>Task number</th><th>Analysis type</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>
+            @foreach (var item in items.Items)
+            {
+                <tr><td><a href="/tasks/@item.Id">#@item.TaskNumber</a></td><td>@item.AnalysisType</td><td><span class="pill">@item.Status</span></td><td>@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td><td><a href="/tasks/@item.Id">Details</a></td></tr>
+            }
+        </tbody></table></div>
+        <div class="actions" style="margin-top:18px"><MudButton Disabled="@(currentPage <= 1)" OnClick="Previous">Previous</MudButton><span>Page @currentPage · @items.TotalCount total</span><MudButton Disabled="@(currentPage * 20 >= items.TotalCount)" OnClick="Next">Next</MudButton></div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "fileId")] public Guid? FileId { get; set; }
+    private PageData<TaskSummary>? items;
+    private int currentPage = 1;
+    private string analysisType = "media_analysis";
+    private string sourceFileId = "";
+    private string? error;
+    private bool busy;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (FileId is { } id) sourceFileId = id.ToString();
+            await Load(); StateHasChanged();
+        }
+    }
+
+    private async Task Load()
+    {
+        try { error = null; items = await Api.GetAsync<PageData<TaskSummary>>($"/api/tasks?page={currentPage}&pageSize=20"); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Create()
+    {
+        if (!Guid.TryParse(sourceFileId, out var fileId)) { error = "Enter a valid file ID."; return; }
+        if (string.IsNullOrWhiteSpace(analysisType)) { error = "Enter an analysis type."; return; }
+        busy = true;
+        try
+        {
+            var detail = await Api.SendAsync<TaskDetail>("POST", "/api/tasks", new
+            {
+                analysisType, inputs = new[] { new { inputType = "asset_file", inputRole = "source", assetFileId = fileId } }
+            });
+            if (detail is not null) Navigation.NavigateTo($"/tasks/{detail.Task.Id}");
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task Previous() { currentPage--; await Load(); }
+    private async Task Next() { currentPage++; await Load(); }
+}

@@ -48,9 +48,17 @@ public sealed class MediaMetadata
 
     public void BeginProcessing()
     {
-        if (Status == StatusProcessing)
-            return;
         Status = StatusProcessing;
+        ErrorCode = null;
+        ErrorMessage = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void Retry()
+    {
+        if (Status != StatusFailed)
+            throw new InvalidOperationException("Only failed metadata can be retried.");
+        Status = StatusPending;
         ErrorCode = null;
         ErrorMessage = null;
         UpdatedAt = DateTime.UtcNow;

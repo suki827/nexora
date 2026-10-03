@@ -4,16 +4,6 @@ namespace Nexora.Application.MediaCatalog;
 
 public sealed record PageResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
 
-public sealed record CreateAssetFile(
-    string FileRole,
-    string OriginalName,
-    string StorageProvider,
-    string? StorageBucket,
-    string StorageKey,
-    string? ContentType,
-    long? SizeBytes,
-    string? ContentHash);
-
 public sealed record ProbeMetadata(
     decimal? DurationSeconds,
     int? Width,
@@ -100,27 +90,6 @@ public sealed class MediaCatalogService(IMediaCatalogRepository repository)
         Guid ownerId, Guid assetId, Guid fileId, CancellationToken cancellationToken) =>
         await repository.GetAssetFileAsync(ownerId, assetId, fileId, cancellationToken);
 
-    public async Task<AssetFile?> CreateAssetFileAsync(
-        Guid ownerId, Guid assetId, CreateAssetFile request, CancellationToken cancellationToken)
-    {
-        if (await GetAssetAsync(ownerId, assetId, cancellationToken) is null)
-            return null;
-
-        var file = new AssetFile(
-            assetId,
-            request.FileRole,
-            request.OriginalName,
-            request.StorageProvider,
-            request.StorageBucket,
-            request.StorageKey,
-            request.ContentType,
-            request.SizeBytes,
-            request.ContentHash);
-        repository.AddAssetFile(file);
-        await repository.SaveChangesAsync(cancellationToken);
-        return file;
-    }
-
     public async Task<bool> DeleteAssetFileAsync(
         Guid ownerId, Guid assetId, Guid fileId, CancellationToken cancellationToken)
     {
@@ -160,6 +129,19 @@ public sealed class MediaCatalogService(IMediaCatalogRepository repository)
             probe.AudioSampleRate, probe.AudioChannels, probe.FormatName, probe.ProbeJson);
         await repository.SaveChangesAsync(cancellationToken);
         return metadata;
+    }
+
+    public async Task<bool> RetryMetadataAsync(
+        Guid ownerId, Guid assetId, Guid fileId, CancellationToken cancellationToken)
+    {
+        if (await repository.GetAssetFileAsync(ownerId, assetId, fileId, cancellationToken) is null)
+            return false;
+        var metadata = await repository.GetMetadataAsync(fileId, cancellationToken);
+        if (metadata is null)
+            return false;
+        metadata.Retry();
+        await repository.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     private static void ValidateOwner(Guid ownerId)

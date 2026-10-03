@@ -1,0 +1,66 @@
+@page "/tasks/{Id:guid}"
+@implements IDisposable
+@inject WebApiClient Api
+
+<PageTitle>Task details · Nexora</PageTitle>
+<div class="page-head"><div><p><a href="/tasks">← Back to analysis tasks</a></p><h1>Task @(detail is null ? "" : $"#{detail.Task.TaskNumber}")</h1></div>@if (detail?.Task.Status is "created" or "queued" or "processing" or "cancel_requested") { <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Cancel">Request cancellation</MudButton> }</div>
+@if (error is not null) { <div class="error">@error</div> }
+@if (detail is null) { <p class="muted">Loading…</p> }
+else
+{
+    <div class="card"><h2>Overview</h2><dl class="detail-list"><dt>Status</dt><dd><span class="pill">@detail.Task.Status</span></dd><dt>Analysis type</dt><dd>@detail.Task.AnalysisType</dd><dt>Priority</dt><dd>@detail.Task.Priority</dd><dt>Created</dt><dd>@detail.Task.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</dd><dt>Last updated</dt><dd>@detail.Task.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</dd></dl></div>
+    <div class="card"><h2>Inputs</h2>@if (detail.Inputs.Count == 0) { <p class="muted">None</p> } else { <div class="table-wrap"><table><thead><tr><th>Role</th><th>Type</th><th>File / artifact ID</th></tr></thead><tbody>@foreach (var input in detail.Inputs) { <tr><td>@input.InputRole</td><td>@input.InputType</td><td>@(input.AssetFileId?.ToString() ?? input.ArtifactId?.ToString())</td></tr> }</tbody></table></div> }</div>
+    <div class="card"><h2>Attempts</h2>@if (detail.Attempts.Count == 0) { <p class="muted">Waiting for an executor</p> } else { <div class="table-wrap"><table><thead><tr><th>Attempt</th><th>Status</th><th>Started</th><th>Error</th></tr></thead><tbody>@foreach (var attempt in detail.Attempts) { <tr><td>@attempt.AttemptNumber</td><td>@attempt.Status</td><td>@attempt.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td><td>@(attempt.ErrorMessage ?? "—")</td></tr> }</tbody></table></div> }</div>
+    <div class="card"><h2>Results</h2>@if (detail.Results.Count == 0) { <p class="muted">No results yet.</p> } else { @foreach (var result in detail.Results) { <h3>@result.ResultType <span class="pill">@(result.IsCurrent ? "Current" : "Previous")</span></h3><pre class="code">@result.ResultPayload.ToString()</pre> } }</div>
+    <div class="card"><h2>Generated files</h2>@if (detail.Artifacts.Count == 0) { <p class="muted">No generated files yet.</p> } else { <div class="table-wrap"><table><thead><tr><th>File name</th><th>Type</th><th>Status</th><th>Size</th></tr></thead><tbody>@foreach (var artifact in detail.Artifacts) { <tr><td>@artifact.FileName</td><td>@artifact.ArtifactType</td><td>@artifact.Status</td><td>@(artifact.SizeBytes?.ToString() ?? "—")</td></tr> }</tbody></table></div> }</div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private TaskDetail? detail;
+    private string? error;
+    private CancellationTokenSource? refresh;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Load();
+            StateHasChanged();
+            refresh = new CancellationTokenSource();
+            _ = RefreshUntilFinishedAsync(refresh.Token);
+        }
+    }
+
+    private async Task Load()
+    {
+        try { error = null; detail = await Api.GetAsync<TaskDetail>($"/api/tasks/{Id}"); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Cancel()
+    {
+        try { await Api.SendAsync("POST", $"/api/tasks/{Id}/cancel"); await Load(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task RefreshUntilFinishedAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (detail?.Task.Status is "succeeded" or "failed" or "cancelled") break;
+                await InvokeAsync(async () => { await Load(); StateHasChanged(); });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    public void Dispose()
+    {
+        refresh?.Cancel();
+        refresh?.Dispose();
+    }
+}

@@ -18,4 +18,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexora.Domain\Nexora.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -12,10 +12,16 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexora.Infrastructure\Nexora.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Nexora.Worker\Nexora.Worker.csproj" />
   </ItemGroup>
 
 </Project>

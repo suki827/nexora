@@ -1,0 +1,33 @@
+@inherits LayoutComponentBase
+@inject WebApiClient Api
+@inject NavigationManager Navigation
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="shell">
+    <aside class="sidebar">
+        <a class="brand" href="/">NEXORA <span>MEDIA</span></a>
+        <div class="nav-label">Workspace</div>
+        <nav>
+            <NavLink href="/assets" Match="NavLinkMatch.Prefix">Media assets</NavLink>
+            <NavLink href="/tasks" Match="NavLinkMatch.Prefix">Analysis tasks</NavLink>
+        </nav>
+        <div class="sidebar-bottom"><MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="Logout">Sign out</MudButton></div>
+    </aside>
+    <main class="main">
+        <header class="topbar"><span>Media workspace</span><span class="topbar-note">Nexora</span></header>
+        <div class="content">@Body</div>
+    </main>
+</div>
+
+@code {
+    private async Task Logout()
+    {
+        try { await Api.SendAsync("POST", "/api/auth/logout"); }
+        catch { /* The session may already have expired. */ }
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

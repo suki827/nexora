@@ -4,10 +4,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>nexora-api-local</UserSecretsId>
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
 	<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
 	<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
 	  <PrivateAssets>all</PrivateAssets>
@@ -21,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexora.Application\Nexora.Application.csproj" />
     <ProjectReference Include="..\Nexora.Infrastructure\Nexora.Infrastructure.csproj" />
+    <ProjectReference Include="..\Nexora.Web\Nexora.Web.csproj" />
   </ItemGroup>
 
 </Project>

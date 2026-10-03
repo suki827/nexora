@@ -2,7 +2,7 @@
 
 Nexora 是一个智能媒体处理平台。
 
-项目目前处于第一阶段：初始化工程骨架。本阶段只建立清晰的模块边界，使 API、Worker 和 React 管理端能够独立开发、构建和运行，暂不实现数据库、认证、消息队列、AI Provider、AI Agent 或媒体处理业务。
+项目已包含 PostgreSQL 持久化、媒体目录 API、Cookie 身份认证、本地分片上传、Worker 中的媒体元数据和音频峰值处理、Task 技术元数据执行流程，以及使用 Blazor 和 MudBlazor 的管理工作台。具体配置与接口见 [媒体上传与分析说明](docs/media-pipeline.md)、[Task 模块说明](docs/task-module.md) 和 [管理工作台说明](docs/web-workspace.md)。视频语义理解与 AI 内容分析仍待实现。
 
 ## 技术栈
 
@@ -11,9 +11,8 @@ Nexora 是一个智能媒体处理平台。
 - ASP.NET Core Web API
 - .NET Worker Service
 - xUnit
-- React
-- TypeScript
-- Vite
+- Blazor Web App
+- MudBlazor
 
 ## 目录结构
 
@@ -21,6 +20,7 @@ Nexora 是一个智能媒体处理平台。
 nexora/
 ├─ src/
 │  ├─ Nexora.Api/
+│  ├─ Nexora.Web/
 │  ├─ Nexora.Worker/
 │  ├─ Nexora.Domain/
 │  ├─ Nexora.Application/
@@ -33,8 +33,6 @@ nexora/
 │  ├─ Nexora.IntegrationTests/
 │  ├─ Nexora.Agent.Tests/
 │  └─ Nexora.Agent.EvaluationTests/
-├─ web/
-│  └─ nexora-admin/
 ├─ infrastructure/
 ├─ docker/
 ├─ docs/
@@ -93,7 +91,7 @@ nexora/
 - 消息基础设施实现
 - 基础设施依赖注入配置
 
-它可以依赖 `Nexora.Application` 和 `Nexora.Domain`。当前阶段不添加 EF Core、数据库、Repository、Migration 或消息队列。
+它可以依赖 `Nexora.Application` 和 `Nexora.Domain`。当前已包含 EF Core、PostgreSQL 映射与媒体目录 Repository。
 
 ### Nexora.Contracts
 
@@ -154,7 +152,7 @@ Worker 负责宿主、调度和生命周期管理，不应承载领域规则。
 - `Nexora.Infrastructure`
 - `Nexora.Contracts`
 
-当前阶段只保留可启动、输出状态日志和优雅停止的最小能力。
+当前 Worker 会轮询待处理的媒体元数据，调用 FFmpeg 工具提取技术信息和音频峰值。
 
 ### Nexora.Agent
 
@@ -191,7 +189,7 @@ Agent 边界层，为未来的智能编排能力预留独立模块，避免 Agen
 
 路径：`tests/Nexora.IntegrationTests`
 
-从 `Nexora.Api` 入口验证多个模块组合后的行为，包括路由、Controller、中间件、依赖注入以及 HTTP 请求和响应。
+验证上传存储与媒体解析等模块组合后的行为，并为后续 API 端到端验证预留位置。
 
 ### Nexora.Agent.Tests
 
@@ -209,15 +207,13 @@ Agent 边界层，为未来的智能编排能力预留独立模块，避免 Agen
 
 ## Web 管理端
 
-### nexora-admin
+### Nexora.Web
 
-路径：`web/nexora-admin`
+路径：`src/Nexora.Web`
 
-基于 React、TypeScript 和 Vite 的 Nexora 管理端。
+Blazor Razor 类库，包含用户管理工作台的页面、样式和浏览器端分片上传代码。`Nexora.Api` 承载这些页面，与 API 共用站点和 Cookie。入口与功能见 [管理工作台说明](docs/web-workspace.md)。
 
-未来用于提供任务管理、运行状态查看和平台配置等界面。当前阶段只提供可独立启动和构建的占位页面，不添加路由框架、API 调用、UI 框架或业务页面。
-
-前端使用 npm 管理依赖，不加入 `.NET` Solution。
+当前提供媒体资源、上传进度、元数据、波形、分析任务和结果界面。跨用户的平台配置和管理员功能尚未实现。
 
 ## 其他目录
 
@@ -237,12 +233,13 @@ Agent 边界层，为未来的智能编排能力预留独立模块，避免 Agen
 | `Nexora.Application` | `Nexora.Domain` |
 | `Nexora.Infrastructure` | `Nexora.Application`、`Nexora.Domain` |
 | `Nexora.Contracts` | 无 |
-| `Nexora.Api` | `Nexora.Application`、`Nexora.Infrastructure`、`Nexora.Contracts` |
+| `Nexora.Web` | Blazor、MudBlazor；通过同源 API 读取业务数据 |
+| `Nexora.Api` | `Nexora.Application`、`Nexora.Infrastructure`、`Nexora.Web` |
 | `Nexora.Worker` | `Nexora.Application`、`Nexora.Infrastructure`、`Nexora.Contracts` |
 | `Nexora.Agent` | `Nexora.Application`、`Nexora.Contracts` |
 | `Nexora.Domain.Tests` | `Nexora.Domain` |
 | `Nexora.Application.Tests` | `Nexora.Application` |
-| `Nexora.IntegrationTests` | `Nexora.Api` |
+| `Nexora.IntegrationTests` | `Nexora.Infrastructure`、`Nexora.Worker` |
 | `Nexora.Agent.Tests` | `Nexora.Agent` |
 | `Nexora.Agent.EvaluationTests` | `Nexora.Agent` |
 
@@ -252,29 +249,21 @@ Agent 边界层，为未来的智能编排能力预留独立模块，避免 Agen
 
 - `Nexora.sln`：聚合所有 .NET 项目，方便统一还原、构建和测试。
 - `global.json`：固定仓库使用的 .NET SDK 版本。
-- `Directory.Build.props`：集中设置所有 .NET 项目的公共编译选项。
-- `Directory.Packages.props`：集中管理 NuGet 包版本。
-- `.editorconfig`：统一编辑器和代码格式规则。
 - `.gitignore`：排除构建产物、本地配置、缓存和秘密文件。
-- `AGENTS.md`：定义自动化开发代理在仓库中的工作规则。
 
 ## 环境要求
 
 - .NET SDK 10
-- Node.js 22 或兼容版本
-- npm
 - Git
+- PostgreSQL：运行媒体 API 与 Worker 时需要
+- FFmpeg（包含 `ffprobe`）：运行媒体分析 Worker 时需要
 
 检查本机环境：
 
 ```powershell
 dotnet --version
-node --version
-npm.cmd --version
 git --version
 ```
-
-如果 Windows PowerShell 的执行策略阻止 `npm.ps1`，可以使用 `npm.cmd`，无需修改系统执行策略。
 
 ## 还原、构建和测试
 
@@ -286,11 +275,13 @@ dotnet build Nexora.sln
 dotnet test Nexora.sln
 ```
 
-## 启动 API
+## 启动 API 和管理工作台
 
 ```powershell
 dotnet run --project src/Nexora.Api
 ```
+
+在 Visual Studio 中只需将 `Nexora.Api` 设为启动项目。打开启动地址的 `/` 进入管理工作台；`Nexora.Web` 无须单独启动。
 
 健康检查端点：
 
@@ -306,23 +297,13 @@ dotnet run --project src/Nexora.Worker
 
 使用 `Ctrl+C` 请求 Worker 优雅停止。
 
-## 启动 React 管理端
+## 媒体上传与后台处理
 
-```powershell
-cd web/nexora-admin
-npm.cmd install
-npm.cmd run dev
-```
-
-生成生产构建：
-
-```powershell
-npm.cmd run build
-```
+认证、数据库连接、本地存储、分片接口、Worker 启动方式及波形格式见 [媒体上传与分析说明](docs/media-pipeline.md)。管理界面说明见 [管理工作台说明](docs/web-workspace.md)。
 
 ## 开发规则
 
-- 修改前阅读 `README.md` 和 `docs/architecture.md`。
+- 修改前阅读 `README.md` 和相关的 `docs` 文档。
 - Domain 不得依赖 Infrastructure。
 - Application 不得依赖 Infrastructure。
 - Agent 不得直接依赖 Infrastructure。
@@ -331,4 +312,3 @@ npm.cmd run build
 - 每个任务只修改明确范围内的内容。
 - 每次修改后运行 build 和相关测试。
 - 不提前实现未来阶段的功能。
-

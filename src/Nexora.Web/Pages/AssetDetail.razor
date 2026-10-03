@@ -1,0 +1,106 @@
+@page "/assets/{Id:guid}"
+@inject WebApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Asset details · Nexora</PageTitle>
+<div class="page-head"><div><p><a href="/assets">← Back to media assets</a></p><h1>@(asset?.Name ?? "Asset details")</h1></div></div>
+@if (error is not null) { <div class="error">@error</div> }
+@if (success is not null) { <div class="success">@success</div> }
+@if (asset is null) { <p class="muted">Loading…</p> }
+else
+{
+    <div class="grid">
+        <div class="card"><h2>Asset information</h2><div class="field"><label for="edit-name">Name</label><input id="edit-name" maxlength="255" @bind="editName" /></div><div class="field"><label for="edit-description">Description</label><textarea id="edit-description" @bind="editDescription"></textarea></div><div class="grid"><div class="field"><label for="edit-type">Type</label><select id="edit-type" @bind="editType"><option value="video">Video</option><option value="audio">Audio</option><option value="image">Image</option><option value="document">Document</option></select></div><div class="field"><label for="edit-status">Status</label><select id="edit-status" @bind="editStatus"><option value="active">Active</option><option value="archived">Archived</option></select></div></div><MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Save">Save changes</MudButton></div>
+        <div class="card"><h2>Upload original file</h2><p class="muted">Files up to 20 GiB are uploaded directly from your browser in 8 MiB chunks.</p><div class="field"><label for="asset-upload">Choose a file</label><input id="asset-upload" type="file" /></div><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="uploading" OnClick="Upload">Start upload</MudButton>@if (uploading) { <p>Uploaded @percent%</p><div class="progress"><span style="width:@(percent)%"></span></div> }</div>
+    </div>
+    <div class="card"><h2>Files</h2>
+        @if (files is null) { <p class="muted">Loading…</p> }
+        else if (files.Items.Count == 0) { <div class="empty">No files uploaded yet.</div> }
+        else
+        {
+            <div class="table-wrap"><table><thead><tr><th>File name</th><th>Role</th><th>Status</th><th>Size</th><th>Actions</th></tr></thead><tbody>
+                @foreach (var file in files.Items)
+                {
+                    <tr><td>@file.OriginalName</td><td>@file.FileRole</td><td><span class="pill">@file.Status</span></td><td>@(file.SizeBytes is { } size ? $"{size / 1024.0 / 1024.0:F1} MiB" : "—")</td><td><div class="actions"><MudButton Size="Size.Small" OnClick="() => ShowMetadata(file.Id)">Metadata</MudButton><MudButton Size="Size.Small" OnClick="() => ShowWaveform(file.Id)">Waveform</MudButton>@if (file.Status == "ready") { <a href="/api/assets/@Id/files/@file.Id/content" target="_blank">Open</a><MudButton Size="Size.Small" Color="Color.Primary" OnClick="() => CreateTask(file.Id)">Create task</MudButton> }</div></td></tr>
+                }
+            </tbody></table></div>
+        }
+    </div>
+    <div class="card"><h2>Audio waveform</h2><p class="muted">Select Waveform for a file above to view its audio peaks.</p><div id="waveform-container"></div></div>
+    @if (metadata is not null)
+    {
+        <div class="card"><h2>File metadata</h2><dl class="detail-list"><dt>Status</dt><dd>@metadata.Status</dd><dt>Duration</dt><dd>@(metadata.DurationSeconds?.ToString("F2") ?? "—") seconds</dd><dt>Resolution</dt><dd>@(metadata.Width is { } width && metadata.Height is { } height ? $"{width} × {height}" : "—")</dd><dt>Video codec</dt><dd>@(metadata.VideoCodec ?? "—")</dd><dt>Audio codec</dt><dd>@(metadata.AudioCodec ?? "—")</dd><dt>Format</dt><dd>@(metadata.FormatName ?? "—")</dd><dt>Error</dt><dd>@(metadata.ErrorMessage ?? "—")</dd></dl></div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private Asset? asset;
+    private PageData<AssetFile>? files;
+    private MediaMetadata? metadata;
+    private string? error;
+    private string? success;
+    private bool uploading;
+    private int percent;
+    private string editName = "";
+    private string? editDescription;
+    private string editType = "video";
+    private string editStatus = "active";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) { await Load(); StateHasChanged(); }
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            error = null;
+            asset = await Api.GetAsync<Asset>($"/api/assets/{Id}");
+            if (asset is not null) { editName = asset.Name; editDescription = asset.Description; editType = asset.AssetType; editStatus = asset.Status; }
+            files = await Api.GetAsync<PageData<AssetFile>>($"/api/assets/{Id}/files?pageSize=100");
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Upload()
+    {
+        error = success = null;
+        uploading = true; percent = 0;
+        try
+        {
+            await Api.UploadAsync(Id, "asset-upload", new Progress<int>(value => { percent = value; _ = InvokeAsync(StateHasChanged); }));
+            success = "Upload complete. Media metadata will be extracted in the background.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { uploading = false; }
+    }
+
+    private async Task ShowMetadata(Guid fileId)
+    {
+        try { error = null; metadata = await Api.GetAsync<MediaMetadata>($"/api/assets/{Id}/files/{fileId}/metadata"); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task ShowWaveform(Guid fileId)
+    {
+        try { error = null; await Api.DrawWaveformAsync(Id, fileId); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void CreateTask(Guid fileId) => Navigation.NavigateTo($"/tasks?fileId={fileId}");
+
+    private async Task Save()
+    {
+        try
+        {
+            error = success = null;
+            asset = await Api.SendAsync<Asset>("PUT", $"/api/assets/{Id}",
+                new { name = editName, description = editDescription, assetType = editType, status = editStatus });
+            success = "Asset changes saved.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}

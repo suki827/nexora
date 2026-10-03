@@ -14,6 +14,9 @@ public class NexoraDbContext : DbContext
     public DbSet<AnalysisTask> AnalysisTasks => Set<AnalysisTask>();
 
     public DbSet<AnalysisResult> AnalysisResults => Set<AnalysisResult>();
+    public DbSet<TaskInput> TaskInputs => Set<TaskInput>();
+    public DbSet<AnalysisTaskAttempt> AnalysisTaskAttempts => Set<AnalysisTaskAttempt>();
+    public DbSet<GeneratedArtifact> GeneratedArtifacts => Set<GeneratedArtifact>();
 
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
 

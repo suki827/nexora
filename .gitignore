@@ -86,7 +86,7 @@ Desktop.ini
 *~
 
 # Local tooling caches
+.local/
 .dotnet/
 .nuget/
 .packages/
-
